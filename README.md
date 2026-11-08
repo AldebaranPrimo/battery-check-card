@@ -108,6 +108,14 @@ Tap a battery to open its details.
 
 Texts live in the `STRINGS` object at the top of `battery-check-card.js`. Pull requests with new languages are welcome.
 
+## More cards
+
+Other cards in the same style:
+
+- [Bin Day Card](https://github.com/AldebaranPrimo/bin-day-card): which bins to put out tonight and the next collection days.
+- [Appliance Energy Card](https://github.com/AldebaranPrimo/appliance-energy-card): what is running on your smart plugs, with power and energy per day.
+- [Tractive Pet Card](https://github.com/AldebaranPrimo/tractive-pet-card): your pet's activity goal, collar and history from the Tractive integration.
+
 ## Licence
 
 [MIT](LICENSE)

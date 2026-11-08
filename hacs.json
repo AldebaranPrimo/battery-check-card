@@ -1,0 +1,6 @@
+{
+  "name": "Battery Check Card",
+  "filename": "battery-check-card.js",
+  "render_readme": true,
+  "homeassistant": "2024.8.0"
+}

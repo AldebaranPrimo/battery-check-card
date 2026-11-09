@@ -73,6 +73,9 @@ names:
 | `exclude` | none | Entity ids to leave out; `*` is a wildcard. |
 | `include` | none | Extra percentage sensors to treat as batteries even without `device_class: battery`. |
 | `mobile` | none | Entity ids to show with phones, watches and trackers. |
+| `categories` | none | Your own groups: a map of group name to a list of entity ids. They win over the automatic category (and are used for the tile label and the *Fine* chips); they are listed first, in the order you write them, then the automatic groups, *Other* last. Ignored with `group_by: area`. |
+| `notify_entity` | none | An automation (or any entity) that sends your low-battery notification. A line at the bottom shows whether it is on, off or not found, and updates when it changes. |
+| `notify_text` | *Low-battery notification*, translated | Label of that line, e.g. `Daily notification for batteries under 2%`. |
 | `names` | none | Map of entity id to the name shown on the card. |
 | `show_ok` | `true` | Show the chips of the batteries that are fine. |
 | `show_mobile` | `true` | Show phones, watches and trackers. |
@@ -86,7 +89,7 @@ names:
   `device_class: battery` (on = low). A low-battery binary sensor gets a tile of its own only when its device has no
   percentage sensor. When the device has both and the binary sensor says the battery is low, the percentage tile goes in
   **Replace** whatever its value.
-- **Not responding**: the state is `unavailable` or `unknown`; the tile shows when the last data arrived.
+- **Not responding**: the state is `unavailable` or `unknown`; the tile says "not responding" with the time it became unavailable.
 - **Names**: the friendly name without a trailing "Battery", "Battery level" or "Battery low"; the device name if
   nothing is left. Use `names:` to change one.
 - **Categories** come from the other entities of the same device, in this order: *Safety* (smoke, carbon monoxide, gas,

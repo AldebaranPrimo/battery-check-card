@@ -6,7 +6,7 @@
  * by itself; groups them by what the device does (or by area) and keeps phones, watches and trackers apart.
  * https://github.com/AldebaranPrimo/battery-check-card — MIT licence.
  */
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 
 const STRINGS = {
   en: {
@@ -25,7 +25,8 @@ const STRINGS = {
     groupMobile: "Phones, watches and trackers",
     low: "low",
     changed: (t) => `changed ${t}`,
-    silent: (t) => `last data ${t}`,
+    silent: (t) => `not responding (${t})`,
+    notify: "Low-battery notification", notifyOn: "on", notifyOff: "off", notifyMissing: "not found",
     trend: "last 30 days",
     charging: "charging", full: "fully charged", discharging: "in use", notCharging: "not charging",
     and: "and", more: (n) => `${n} more`,
@@ -50,7 +51,8 @@ const STRINGS = {
     groupMobile: "Telefoni, orologi e tracker",
     low: "bassa",
     changed: (t) => `cambiato ${t}`,
-    silent: (t) => `ultimo dato ${t}`,
+    silent: (t) => `non risponde (${t})`,
+    notify: "Notifica pile scariche", notifyOn: "attiva", notifyOff: "spenta", notifyMissing: "non trovata",
     trend: "ultimi 30 giorni",
     charging: "in carica", full: "carica completa", discharging: "in uso", notCharging: "non in carica",
     and: "e", more: (n) => `altre ${n}`,
@@ -93,9 +95,11 @@ class BatteryCheckCard extends HTMLElement {
   setConfig(config) {
     for (const k of ["exclude", "include", "mobile"]) if (config[k] !== undefined && !Array.isArray(config[k])) throw new Error(`${k} must be a list`);
     if (config.names !== undefined && (typeof config.names !== "object" || Array.isArray(config.names))) throw new Error("names must be a map of entity_id: name");
+    if (config.categories !== undefined && (typeof config.categories !== "object" || config.categories === null || Array.isArray(config.categories)
+      || !Object.values(config.categories).every(Array.isArray))) throw new Error("categories must be a map of group name: list of entity ids");
     if (config.group_by !== undefined && !["category", "area", "none"].includes(config.group_by)) throw new Error("group_by must be category, area or none");
     this._config = { critical: 20, low: 50, exclude: [], include: [], mobile: [], names: {}, group_by: "category",
-      show_mobile: true, show_ok: true, show_storage: false, trend: true, ...config };
+      categories: {}, show_mobile: true, show_ok: true, show_storage: false, trend: true, ...config };
     if (!(this._config.critical < this._config.low)) throw new Error("critical must be lower than low");
     this._exclude = this._config.exclude.map(glob);
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
@@ -106,7 +110,8 @@ class BatteryCheckCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     const d = this._data();
-    const sig = d.all.map((b) => `${b.id}=${b.st?.state}`).join("|") + "|" + Math.floor(Date.now() / 300000) + "|" + this._lang().locale;
+    const nid = this._config.notify_entity;
+    const sig = d.all.map((b) => `${b.id}=${b.st?.state}`).join("|") + (nid ? `|${nid}=${hass.states?.[nid]?.state}` : "") + "|" + Math.floor(Date.now() / 300000) + "|" + this._lang().locale;
     if (sig === this._sig) return;
     this._sig = sig;
     this._render(d);
@@ -144,6 +149,9 @@ class BatteryCheckCard extends HTMLElement {
     const siblings = {};
     for (const [id, e] of Object.entries(reg)) if (e.device_id) (siblings[e.device_id] = siblings[e.device_id] || []).push(id);
     const kinds = (dev, self) => (siblings[dev] || []).filter((x) => x !== self).map((x) => states[x]?.attributes?.device_class || x.split(".")[0]);
+    // user-defined groups win over the automatic category; a group keeps the position it has in the config
+    const custom = {};
+    Object.entries(c.categories).forEach(([g, ids], i) => ids.forEach((id) => { if (!(id in custom)) custom[id] = { g, i }; }));
     const excluded = (id) => this._exclude.some((r) => r.test(id));
 
     const pctIds = Object.keys(states).filter((id) => (id.startsWith("sensor.") && states[id].attributes.device_class === "battery") || c.include.includes(id));
@@ -166,7 +174,7 @@ class BatteryCheckCard extends HTMLElement {
       if (!name) name = dev.name_by_user || dev.name || id;
       if (!c.names[id]) name = name.replace(/^./, (x) => x.toUpperCase());
       return { id, st, name, binary, value: binary ? null : num(st), lowFlag: binary && st.state === "on", flagged: !binary && flaggedDev.has(e.device_id), deadBinary: binary && UNAVAILABLE.includes(st.state),
-        mobile, storage, category, area: areaId && areas[areaId] ? areas[areaId].name : null, charge };
+        mobile, storage, category, group: custom[id] || null, area: areaId && areas[areaId] ? areas[areaId].name : null, charge };
     };
 
     const all = [
@@ -214,11 +222,18 @@ class BatteryCheckCard extends HTMLElement {
     return `<svg class="spark" viewBox="0 0 100 22" preserveAspectRatio="none" role="img" aria-label="${esc(this._lang().s.trend)}"><path d="${path}"/></svg>`;
   }
 
+  // the name of the group a battery belongs to (area, your own group, or the automatic category)
+  _group(b) {
+    const { s } = this._lang();
+    if (this._config.group_by === "area") return b.area || s.categories.noArea;
+    return b.group ? b.group.g : s.categories[b.category];
+  }
+
   _tile(b, color, cls) {
     const { s } = this._lang(), [c, t] = COLORS[color];
     const value = b.value !== null ? `${this._fmt(b.value)}<small>%</small>` : b.lowFlag || b.flagged ? esc(s.low) : "—";
     const detail = (b.binary ? b.deadBinary : b.value === null) ? s.silent(this._ago(b.st.last_changed)) : s.changed(this._ago(b.st.last_changed));
-    const cat = this._config.group_by === "area" ? (b.area || s.categories.noArea) : s.categories[b.category];
+    const cat = this._group(b);
     const icon = b.value === null && !b.lowFlag && !b.flagged ? "mdi:battery-unknown" : b.lowFlag || b.flagged || b.value < this._config.critical ? "mdi:battery-alert-variant-outline" : "mdi:battery-50";
     return `<div class="tile ${cls}" style="--c:${c};--t:${t}" data-entity="${esc(b.id)}" title="${esc(b.id)}" role="button" tabindex="0">
       <div class="row"><ha-icon icon="${icon}"></ha-icon><span class="name">${esc(b.name)}</span></div>
@@ -261,15 +276,23 @@ class BatteryCheckCard extends HTMLElement {
       else {
         const groups = {};
         for (const b of d.ok) {
-          const g = c.group_by === "area" ? (b.area || s.categories.noArea) : s.categories[b.category];
+          const g = this._group(b);
           (groups[g] = groups[g] || []).push(b);
         }
         const last = [s.categories.other, s.categories.noArea];
-        okHtml = Object.entries(groups).sort((a, b) => last.includes(a[0]) - last.includes(b[0]) || b[1].length - a[1].length || a[0].localeCompare(b[0]))
+        // your own groups first, in the order written in the config; then the automatic ones; "Other" last
+        const pos = (g) => { const b = groups[g].find((x) => x.group && x.group.g === g && c.group_by !== "area"); return b ? b.group.i : Infinity; };
+        okHtml = Object.entries(groups).sort((a, b) => pos(a[0]) - pos(b[0]) || last.includes(a[0]) - last.includes(b[0]) || b[1].length - a[1].length || a[0].localeCompare(b[0]))
           .map(([g, list]) => `<div class="group">${esc(s.groupOk(c.low))} · ${esc(g)}</div><div class="chips">${list.map((b) => this._chip(b)).join("")}</div>`).join("");
       }
     }
 
+    let notifyHtml = "";
+    if (c.notify_entity) {
+      const n = this._hass.states?.[c.notify_entity];
+      const label = c.notify_text ?? s.notify;
+      notifyHtml = `<div class="foot notify"${n ? ` data-entity="${esc(c.notify_entity)}" role="button" tabindex="0"` : ""}>${esc(label)}: ${esc(n ? (n.state === "on" ? s.notifyOn : s.notifyOff) : s.notifyMissing)}.</div>`;
+    }
     const fixedCount = d.all.length - d.mobile.length;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>
       <div class="head"><h2>${esc(c.title ?? s.title)}</h2><span class="note">${esc(s.head(fixedCount, d.mobile.length))}</span></div>
@@ -281,6 +304,7 @@ class BatteryCheckCard extends HTMLElement {
       ${okHtml}
       ${c.show_mobile && d.mobile.length ? `<div class="group">${esc(s.groupMobile)}</div><div class="chips">${d.mobile.map((b) => this._mobileChip(b)).join("")}</div>` : ""}
       ${d.all.length ? `<div class="foot">${esc(s.footer)}</div>` : ""}
+      ${notifyHtml}
     </ha-card>`;
     this.shadowRoot.querySelectorAll("[data-entity]").forEach((el) => {
       const open = () => this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: el.dataset.entity } }));
@@ -335,6 +359,8 @@ const STYLE = `
   .chip.full { background: var(--c); color: var(--t); border-color: var(--c); font-weight: 600; }
   .chip.full ha-icon { color: var(--t); }
   .chip b { font-weight: 700; white-space: nowrap; }
+  .foot.notify[data-entity] { cursor: pointer; }
+  .foot + .foot { margin-top: 4px; }
   .foot { margin-top: 12px; font-size: .72rem; color: var(--secondary-text-color); }
   @container bcc (max-width: 420px) {
     ha-card { padding: 12px; }

@@ -6,7 +6,7 @@
  * by itself; groups them by what the device does (or by area) and keeps phones, watches and trackers apart.
  * https://github.com/AldebaranPrimo/battery-check-card — MIT licence.
  */
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 
 const STRINGS = {
   en: {
@@ -82,6 +82,12 @@ const CATEGORY_RULES = [
 ];
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const checkLanguage = (v) => {
+  if (v === undefined || v === null || v === "") return;
+  let ok = typeof v === "string";
+  try { ok = ok && Intl.getCanonicalLocales(v).length > 0; } catch (e) { ok = false; }
+  if (!ok) throw new Error("language must be a language code like en or it-IT");
+};
 const num = (st) => {
   if (!st || UNAVAILABLE.includes(String(st.state).toLowerCase())) return null;
   const v = parseFloat(st.state);
@@ -94,13 +100,17 @@ class BatteryCheckCard extends HTMLElement {
 
   setConfig(config) {
     for (const k of ["exclude", "include", "mobile"]) if (config[k] !== undefined && !Array.isArray(config[k])) throw new Error(`${k} must be a list`);
-    if (config.names !== undefined && (typeof config.names !== "object" || Array.isArray(config.names))) throw new Error("names must be a map of entity_id: name");
+    if (config.names !== undefined && (typeof config.names !== "object" || config.names === null || Array.isArray(config.names)
+      || !Object.values(config.names).every((n) => typeof n === "string"))) throw new Error("names must be a map of entity_id: name");
+    checkLanguage(config.language);
     if (config.categories !== undefined && (typeof config.categories !== "object" || config.categories === null || Array.isArray(config.categories)
       || !Object.values(config.categories).every(Array.isArray))) throw new Error("categories must be a map of group name: list of entity ids");
     if (config.group_by !== undefined && !["category", "area", "none"].includes(config.group_by)) throw new Error("group_by must be category, area or none");
     this._config = { critical: 20, low: 50, exclude: [], include: [], mobile: [], names: {}, group_by: "category",
       categories: {}, show_mobile: true, show_ok: true, show_storage: false, trend: true, ...config };
-    if (!(this._config.critical < this._config.low)) throw new Error("critical must be lower than low");
+    const { critical, low } = this._config;
+    if (![critical, low].every((v) => Number.isFinite(v) && v >= 0 && v <= 100)) throw new Error("critical and low must be numbers from 0 to 100");
+    if (!(critical < low)) throw new Error("critical must be lower than low");
     this._exclude = this._config.exclude.map(glob);
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
     this._sig = null;
@@ -274,7 +284,7 @@ class BatteryCheckCard extends HTMLElement {
     if (c.show_ok && d.ok.length) {
       if (c.group_by === "none") okHtml = `<div class="group">${esc(s.groupOk(c.low))}</div><div class="chips">${d.ok.map((b) => this._chip(b)).join("")}</div>`;
       else {
-        const groups = {};
+        const groups = Object.create(null);
         for (const b of d.ok) {
           const g = this._group(b);
           (groups[g] = groups[g] || []).push(b);

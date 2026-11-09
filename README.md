@@ -67,8 +67,8 @@ names:
 | Option | Default | Description |
 |---|---|---|
 | `title` | *Batteries*, translated | Card title. |
-| `critical` | `20` | Below this percentage a battery is in **Replace**. |
-| `low` | `50` | Below this percentage (and from `critical` up) a battery is in **Keep an eye on**. |
+| `critical` | `20` | Below this percentage a battery is in **Replace** (0-100, lower than `low`). |
+| `low` | `50` | Below this percentage (and from `critical` up) a battery is in **Keep an eye on** (0-100). |
 | `group_by` | `category` | How fine batteries are grouped: `category`, `area` or `none`. |
 | `exclude` | none | Entity ids to leave out; `*` is a wildcard. |
 | `include` | none | Extra percentage sensors to treat as batteries even without `device_class: battery`. |

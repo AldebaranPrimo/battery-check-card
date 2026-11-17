@@ -27,14 +27,14 @@ A Home Assistant dashboard card that finds every battery in your home by itself 
 
 ### Marketplace (Home Assistant 2026.11 and newer)
 
-Until the card is in the default catalogue, add it by link: open **Settings → Marketplace**, choose
-**Add from link**, paste `https://github.com/AldebaranPrimo/battery-check-card`, then install **Battery Check Card**.
-Reload the page in the browser afterwards.
+Open **Settings → Marketplace**, search for **Battery Check Card** and install it. Reload the page in the browser afterwards.
+If the card does not show up in the search, add it by link instead: choose **Add from link** and paste
+`https://github.com/AldebaranPrimo/battery-check-card`.
 
 ### HACS (before 2026.11)
 
-HACS → three dots → **Custom repositories** → add `https://github.com/AldebaranPrimo/battery-check-card` with type
-**Dashboard**, then download **Battery Check Card**.
+In HACS, search for **Battery Check Card** and download it. Alternatively, HACS → three dots → **Custom repositories** → add
+`https://github.com/AldebaranPrimo/battery-check-card` with type **Dashboard**, then download **Battery Check Card**.
 
 ### Manual
 
